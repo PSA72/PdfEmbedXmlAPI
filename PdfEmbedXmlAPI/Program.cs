@@ -1,5 +1,7 @@
 using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Filespec;
+using iText.Kernel.XMP;
+using iText.Kernel.XMP.Options;
 using iText.Pdfa;
 
 // Mini WebAPI
@@ -57,6 +59,10 @@ PdfEmbedXmlResponse PdfEmbedXml(PdfEmbedXmlRequest request)
                 originalPdfDoc.CopyPagesTo(1, originalPdfDoc.GetNumberOfPages(), transformedPdfADoc);
             }
 
+            // Update XMP Metadata
+            XMPMeta xmp = CreateValidXmp(transformedPdfADoc);
+            transformedPdfADoc.SetXmpMetadata(xmp);
+
             // Embed XML into PDF
             if (!String.IsNullOrWhiteSpace(request.XmlBase64))
             {
@@ -97,6 +103,69 @@ PdfEmbedXmlResponse PdfEmbedXml(PdfEmbedXmlRequest request)
     }
 
     return ret;
+}
+
+XMPMeta CreateValidXmp(PdfADocument pdfDoc)
+{
+    XMPMeta xmp = pdfDoc.GetXmpMetadata(true);
+    string zugferdNamespace = "urn:ferd:pdfa:CrossIndustryDocument:invoice:1p0#";
+    string zugferdPrefix = "fx";
+    XMPMetaFactory.GetSchemaRegistry().RegisterNamespace(zugferdNamespace, zugferdPrefix);
+
+    xmp.SetProperty(zugferdNamespace, "DocumentType", "INVOICE");
+    xmp.SetProperty(zugferdNamespace, "Version", "1.0");
+    xmp.SetProperty(zugferdNamespace, "ConformanceLevel", "EXTENDED");
+    xmp.SetProperty(zugferdNamespace, "DocumentFileName", "factur-x.xml");
+
+    PropertyOptions bagOptions = new PropertyOptions(PropertyOptions.ARRAY);
+    xmp.SetProperty(XMPConst.NS_PDFA_EXTENSION, "schemas", null, bagOptions);
+
+    string bagPath = "pdfaExtension:schemas";
+
+    int newItemIndex = xmp.CountArrayItems(XMPConst.NS_PDFA_EXTENSION, bagPath) + 1;
+    string newItemPath = bagPath + "[" + newItemIndex + "]";
+
+    PropertyOptions structOptions = new PropertyOptions(PropertyOptions.STRUCT);
+    xmp.SetProperty(XMPConst.NS_PDFA_EXTENSION, newItemPath, null, structOptions);
+
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, newItemPath, XMPConst.NS_PDFA_SCHEMA, "schema", "Factur-X PDFA Extension Schema");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, newItemPath, XMPConst.NS_PDFA_SCHEMA, "namespaceURI", zugferdNamespace);
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, newItemPath, XMPConst.NS_PDFA_SCHEMA, "prefix", "fx");
+
+    string seqPath = newItemPath + "/pdfaSchema:property";
+    PropertyOptions seqOptions = new PropertyOptions(PropertyOptions.ARRAY_ORDERED);
+    xmp.SetProperty(XMPConst.NS_PDFA_EXTENSION, seqPath, null, seqOptions);
+
+    string firstSeqItemPath = seqPath + "[1]";
+    string secondSeqItemPath = seqPath + "[2]";
+    string thirdSeqItemPath = seqPath + "[3]";
+    string fourthSeqItemPath = seqPath + "[4]";
+
+    xmp.SetProperty(XMPConst.NS_PDFA_EXTENSION, firstSeqItemPath, null, structOptions);
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, firstSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "name", "DocumentFileName");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, firstSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "valueType", "Text");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, firstSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "category", "external");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, firstSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "description", "The name of the embedded XML document");
+
+    xmp.SetProperty(XMPConst.NS_PDFA_EXTENSION, secondSeqItemPath, null, structOptions);
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, secondSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "name", "DocumentType");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, secondSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "valueType", "Text");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, secondSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "category", "external");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, secondSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "description", "The type of the hybrid document in capital letters, e.g. INVOICE or ORDER");
+
+    xmp.SetProperty(XMPConst.NS_PDFA_EXTENSION, thirdSeqItemPath, null, structOptions);
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, thirdSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "name", "Version");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, thirdSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "valueType", "Text");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, thirdSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "category", "external");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, thirdSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "description", "The actual version of the standard applying to the embedded XML document");
+
+    xmp.SetProperty(XMPConst.NS_PDFA_EXTENSION, fourthSeqItemPath, null, structOptions);
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, fourthSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "name", "ConformanceLevel");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, fourthSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "valueType", "Text");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, fourthSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "category", "external");
+    xmp.SetStructField(XMPConst.NS_PDFA_EXTENSION, fourthSeqItemPath, XMPConst.NS_PDFA_PROPERTY, "description", "The conformance level of the embedded XML document");
+
+    return xmp;
 }
 
 // Data transfer object for the request
